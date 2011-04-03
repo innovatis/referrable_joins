@@ -5,4 +5,4 @@ This is sparse. I will write more later once I know it works properly.
   > Translation.joins(source,target).where(source.relation[:id].lt(2)).size
   => 3 
   > Translation.joins(source,target).where(target.relation[:id].lt(2)).size
-  => 3 
+  => 0
