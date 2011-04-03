@@ -1,6 +1,6 @@
   > source=ActiveRecord::ReferrableJoin.new(:languages,:source_language)
   > target=ActiveRecord::ReferrableJoin.new(:languages,:target_language)
-  > Subproject.joins(x,y).where(source.relation[:id].lt(2)).size
+  > Translation.joins(source,target).where(source.relation[:id].lt(2)).size
   => 3 
-  > Subproject.joins(x,y).where(target.relation[:id].lt(2)).size
+  > Translation.joins(source,target).where(target.relation[:id].lt(2)).size
   => 3 
