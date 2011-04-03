@@ -1,3 +1,5 @@
+This is sparse. I will write more later once I know it works properly.
+
   > source=ActiveRecord::ReferrableJoin.new(:languages,:source_language)
   > target=ActiveRecord::ReferrableJoin.new(:languages,:target_language)
   > Translation.joins(source,target).where(source.relation[:id].lt(2)).size
