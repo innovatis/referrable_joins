@@ -67,7 +67,7 @@ module ActiveRecord
       outer_association_joins = []
 
       inner_joins = @inner_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
-      outer_joins  =  @outer_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
+      outer_joins = @outer_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
 
       inner_joins.each do |join|
         inner_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
@@ -121,8 +121,8 @@ module ActiveRecord
           @base_records_in_order = []
           @table_aliases         = Hash.new { |aliases, table| aliases[table] = 0 }
           @table_aliases[base.table_name] = 1
-          build(inner_associations, @joins.first, Arel::InnerJoin)
           build(outer_associations, @joins.first, Arel::OuterJoin)
+          build(inner_associations, @joins.first, Arel::InnerJoin)
         end
     
         def build(associations, parent = nil, join_type = Arel::InnerJoin)
