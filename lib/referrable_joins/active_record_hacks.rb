@@ -4,6 +4,14 @@ module ActiveRecord
     
     attr_accessor :left_joins_values, :inner_joins_values
 
+    def joins(*args)
+      relation = clone
+
+      args.flatten!
+      relation.joins_values += args unless args.blank?
+
+      relation
+    end
     alias_method :inner_joins, :joins
     
     def left_joins(*args)
