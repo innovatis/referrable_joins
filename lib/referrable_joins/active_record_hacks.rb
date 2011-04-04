@@ -33,7 +33,7 @@ module ActiveRecord
       end
       
       # MONKEYPATCH Only change, right here.
-      merged_relation = merged_relation.outer_joins(r.outer_joins_values).inner_join(r.inner_joins_values)
+      merged_relation = merged_relation.outer_joins(r.outer_joins_values).inner_joins(r.inner_joins_values)
 
       merged_wheres = @where_values + r.where_values
 
