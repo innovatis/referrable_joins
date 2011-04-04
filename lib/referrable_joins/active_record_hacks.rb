@@ -1,26 +1,77 @@
 module ActiveRecord
   
   module QueryMethods
-    def build_joins(relation, joins)
-      association_joins = []
+    
+    attr_accessor :left_joins_values, :inner_joins_values
 
-      joins = @joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
+    alias_method :inner_joins, :joins
+    
+    def left_joins(*args)
+      relation = clone
 
-      joins.each do |join|
-        # MONKEYPATCH Added ReferrableJoin to the array here.
-        association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+      args.flatten!
+      relation.left_joins_values ||= []
+      relation.left_joins_values += args unless args.blank?
+
+      relation
+    end
+
+    def build_arel
+      arel = table
+      
+      @inner_joins_values||=[]
+      @left_joins_values||=[]
+      
+      arel = build_joins(arel, @inner_joins_values, @left_joins_values) unless @left_joins_values.blank? && @inner_joins_values.blank?
+
+      (@where_values - ['']).uniq.each do |where|
+        where = Arel.sql(where) if String === where
+        arel = arel.where(Arel::Nodes::Grouping.new(where))
       end
 
-      stashed_association_joins = joins.grep(ActiveRecord::Associations::ClassMethods::JoinDependency::JoinAssociation)
+      arel = arel.having(*@having_values.uniq.reject{|h| h.blank?}) unless @having_values.empty?
 
-      non_association_joins = (joins - association_joins - stashed_association_joins)
+      arel = arel.take(@limit_value) if @limit_value
+      arel = arel.skip(@offset_value) if @offset_value
+
+      arel = arel.group(*@group_values.uniq.reject{|g| g.blank?}) unless @group_values.empty?
+
+      arel = arel.order(*@order_values.uniq.reject{|o| o.blank?}) unless @order_values.empty?
+
+      arel = build_select(arel, @select_values.uniq)
+
+      arel = arel.from(@from_value) if @from_value
+      arel = arel.lock(@lock_value) if @lock_value
+
+      arel
+    end
+
+    
+    def build_joins(relation, inner_joins, left_joins)
+      inner_association_joins = []
+      left_association_joins = []
+
+      inner_joins = @inner_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
+      left_joins  =  @left_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
+
+      inner_joins.each do |join|
+        inner_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+      end
+
+      left_joins.each do |join|
+        left_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+      end
+
+      stashed_association_joins = (inner_joins + left_joins).grep(ActiveRecord::Associations::ClassMethods::JoinDependency::JoinAssociation)
+
+      non_association_joins = (left_joins + inner_joins - left_association_joins - inner_association_joins - stashed_association_joins)
       custom_joins = custom_join_sql(*non_association_joins)
 
-      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, association_joins, custom_joins)
+      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, inner_association_joins, left_association_joins, custom_joins)
 
       join_dependency.graft(*stashed_association_joins)
 
-      @implicit_readonly = true unless association_joins.empty? && stashed_association_joins.empty?
+      @implicit_readonly = true unless inner_association_joins.empty? && left_association_joins.empty? && stashed_association_joins.empty?
 
       to_join = []
 
@@ -28,23 +79,36 @@ module ActiveRecord
         if (association_relation = association.relation).is_a?(Array)
           to_join << [association_relation.first, association.join_type, association.association_join.first]
           to_join << [association_relation.last, association.join_type, association.association_join.last]
-        else 
+        else
           to_join << [association_relation, association.join_type, association.association_join]
         end
       end
-      
+
       to_join.uniq.each do |left, join_type, right|
         relation = relation.join(left, join_type).on(*right)
       end
 
       relation.join(custom_joins)
     end
+    
   end 
   
   
   module Associations
     module ClassMethods
       class JoinDependency
+
+        def initialize(base, inner_associations, left_associations, joins)
+          @joins                 = [JoinBase.new(base, joins)]
+          @associations          = {}
+          @reflections           = []
+          @base_records_hash     = {}
+          @base_records_in_order = []
+          @table_aliases         = Hash.new { |aliases, table| aliases[table] = 0 }
+          @table_aliases[base.table_name] = 1
+          build(inner_associations, @joins.first, Arel::InnerJoin)
+          build(left_associations,  @joins.first, Arel::OuterJoin)
+        end
     
         def build(associations, parent = nil, join_type = Arel::InnerJoin)
           parent ||= @joins.last

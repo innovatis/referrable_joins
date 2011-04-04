@@ -3,7 +3,9 @@ class ReferrableJoin
   attr_reader :association
   attr_accessor :relation
 
-  delegate :[], :to => :relation
+  def [](name)
+    relation.columns.find { |col| col.name == name }
+  end 
   
   def initialize(table, association)
     @association = association
