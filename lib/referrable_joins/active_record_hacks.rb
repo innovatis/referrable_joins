@@ -1,8 +1,39 @@
 module ActiveRecord
 
+  class ReflectionTable
+   
+    attr_reader :association
+    attr_accessor :relation
+   
+    def [](name)
+      relation.columns.find { |col| col.name == name }
+    end 
+    
+    def initialize(table, association)
+      @association = association
+      @relation = Arel::Table.new(table, ActiveRecord::Base)
+    end 
+    
+    def mirror_relation(other)
+      ["engine", "columns", "table_alias"].each do |ivar|
+        @relation.instance_variable_set("@#{ivar}", other.instance_variable_get("@#{ivar}"))
+      end 
+    end 
+    
+    def to_s
+      @association.to_s
+    end 
+    
+  end 
+   
   class Base
     class << self
       delegate :outer_joins, :inner_joins, :to => :scoped
+      
+      def reflection_table(reflection)
+        ActiveRecord::ReflectionTable.new(self.reflections[reflection].table_name.to_sym)
+      end 
+      
     end 
   end 
 
@@ -70,11 +101,11 @@ module ActiveRecord
       outer_joins = @outer_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
 
       inner_joins.each do |join|
-        inner_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+        inner_association_joins << join if [Hash, Array, Symbol, ActiveRecord::ReflectionTable].include?(join.class) && !array_of_strings?(join)
       end
 
       outer_joins.each do |join|
-        outer_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+        outer_association_joins << join if [Hash, Array, Symbol, ActiveRecord::ReflectionTable].include?(join.class) && !array_of_strings?(join)
       end
 
       stashed_association_joins = (inner_joins + outer_joins).grep(ActiveRecord::Associations::ClassMethods::JoinDependency::JoinAssociation)
@@ -128,15 +159,15 @@ module ActiveRecord
         def build(associations, parent = nil, join_type = Arel::InnerJoin)
           parent ||= @joins.last
           case associations
-          # MONKEYPATCH Added ReferrableJoin here
-          when Symbol, String, ReferrableJoin
+          # MONKEYPATCH Added ActiveRecord::ReflectionTable here
+          when Symbol, String, ActiveRecord::ReflectionTable
             reflection = parent.reflections[associations.to_s.intern] or
               raise ConfigurationError, "Association named '#{ associations }' was not found; perhaps you misspelled it\?"
             unless join_association = find_join_association(reflection, parent)
               @reflections << reflection
               join_association = build_join_association(reflection, parent)
               # <MONKEYPATCH added this conditional
-              if associations.kind_of?(ReferrableJoin)
+              if associations.kind_of?(ActiveRecord::ReflectionTable)
                 associations.mirror_relation(join_association.relation)
               end 
               # >MONKEYPATCH
