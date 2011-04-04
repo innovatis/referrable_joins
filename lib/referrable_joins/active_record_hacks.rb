@@ -2,7 +2,7 @@ module ActiveRecord
   
   module QueryMethods
     
-    attr_accessor :left_joins_values, :inner_joins_values
+    attr_accessor :outer_joins_values, :inner_joins_values
 
     def joins(*args)
       relation = clone
@@ -15,12 +15,12 @@ module ActiveRecord
     end
     alias_method :inner_joins, :joins
     
-    def left_joins(*args)
+    def outer_joins(*args)
       relation = clone
 
       args.flatten!
-      relation.left_joins_values ||= []
-      relation.left_joins_values += args unless args.blank?
+      relation.outer_joins_values ||= []
+      relation.outer_joins_values += args unless args.blank?
 
       relation
     end
@@ -29,9 +29,9 @@ module ActiveRecord
       arel = table
       
       @inner_joins_values||=[]
-      @left_joins_values||=[]
+      @outer_joins_values||=[]
       
-      arel = build_joins(arel, @inner_joins_values, @left_joins_values) unless @left_joins_values.blank? && @inner_joins_values.blank?
+      arel = build_joins(arel, @inner_joins_values, @outer_joins_values) unless @outer_joins_values.blank? && @inner_joins_values.blank?
 
       (@where_values - ['']).uniq.each do |where|
         where = Arel.sql(where) if String === where
@@ -56,31 +56,31 @@ module ActiveRecord
     end
 
     
-    def build_joins(relation, inner_joins, left_joins)
+    def build_joins(relation, inner_joins, outer_joins)
       inner_association_joins = []
-      left_association_joins = []
+      outer_association_joins = []
 
       inner_joins = @inner_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
-      left_joins  =  @left_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
+      outer_joins  =  @outer_joins_values.map {|j| j.respond_to?(:strip) ? j.strip : j}.uniq
 
       inner_joins.each do |join|
         inner_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
       end
 
-      left_joins.each do |join|
-        left_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
+      outer_joins.each do |join|
+        outer_association_joins << join if [Hash, Array, Symbol, ReferrableJoin].include?(join.class) && !array_of_strings?(join)
       end
 
-      stashed_association_joins = (inner_joins + left_joins).grep(ActiveRecord::Associations::ClassMethods::JoinDependency::JoinAssociation)
+      stashed_association_joins = (inner_joins + outer_joins).grep(ActiveRecord::Associations::ClassMethods::JoinDependency::JoinAssociation)
 
-      non_association_joins = (left_joins + inner_joins - left_association_joins - inner_association_joins - stashed_association_joins)
+      non_association_joins = (outer_joins + inner_joins - outer_association_joins - inner_association_joins - stashed_association_joins)
       custom_joins = custom_join_sql(*non_association_joins)
 
-      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, inner_association_joins, left_association_joins, custom_joins)
+      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, inner_association_joins, outer_association_joins, custom_joins)
 
       join_dependency.graft(*stashed_association_joins)
 
-      @implicit_readonly = true unless inner_association_joins.empty? && left_association_joins.empty? && stashed_association_joins.empty?
+      @implicit_readonly = true unless inner_association_joins.empty? && outer_association_joins.empty? && stashed_association_joins.empty?
 
       to_join = []
 
@@ -107,7 +107,7 @@ module ActiveRecord
     module ClassMethods
       class JoinDependency
 
-        def initialize(base, inner_associations, left_associations, joins)
+        def initialize(base, inner_associations, outer_associations, joins)
           @joins                 = [JoinBase.new(base, joins)]
           @associations          = {}
           @reflections           = []
@@ -116,7 +116,7 @@ module ActiveRecord
           @table_aliases         = Hash.new { |aliases, table| aliases[table] = 0 }
           @table_aliases[base.table_name] = 1
           build(inner_associations, @joins.first, Arel::InnerJoin)
-          build(left_associations,  @joins.first, Arel::OuterJoin)
+          build(outer_associations, @joins.first, Arel::OuterJoin)
         end
     
         def build(associations, parent = nil, join_type = Arel::InnerJoin)
