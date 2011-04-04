@@ -8,7 +8,8 @@ module ActiveRecord
       relation = clone
 
       args.flatten!
-      relation.joins_values += args unless args.blank?
+      relation.inner_joins_values ||= []
+      relation.inner_joins_values += args unless args.blank?
 
       relation
     end
