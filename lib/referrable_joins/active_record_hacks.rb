@@ -1,5 +1,11 @@
 module ActiveRecord
-  
+
+  class Base
+    class << self
+      delegate :outer_joins, :inner_joins, :to => :scoped
+    end 
+  end 
+
   module QueryMethods
     
     attr_accessor :outer_joins_values, :inner_joins_values
