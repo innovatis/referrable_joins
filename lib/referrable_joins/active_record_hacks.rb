@@ -1,5 +1,23 @@
 module ActiveRecord
-  
+
+  module FinderMethods
+    def find_with_associations
+      including = (@eager_load_values + @includes_values).uniq
+      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, including, nil, nil)
+      rows = construct_relation_for_association_find(join_dependency).to_a
+      join_dependency.instantiate(rows)
+    rescue ThrowResult
+      []
+    end
+
+    def construct_relation_for_association_calculations
+      including = (@eager_load_values + @includes_values).uniq
+      join_dependency = ActiveRecord::Associations::ClassMethods::JoinDependency.new(@klass, including, nil, arel.joins(arel))
+      relation = except(:includes, :eager_load, :preload)
+      apply_join_dependency(relation, join_dependency)
+    end
+  end 
+    
   module SpawnMethods
     def merge(r)
       merged_relation = clone
