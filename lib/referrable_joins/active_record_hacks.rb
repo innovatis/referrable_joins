@@ -238,7 +238,7 @@ module ActiveRecord
           @base_records_in_order = []
           @table_aliases         = Hash.new { |aliases, table| aliases[table] = 0 }
           @table_aliases[base.table_name] = 1
-          build(outer_associations, @joins.first, Arel::OuterJoin)
+          build(outer_associations, @joins.first, Arel::OuterJoin) if outer_associations
           build(inner_associations, @joins.first, Arel::InnerJoin)
         end
     
