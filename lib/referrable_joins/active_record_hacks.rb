@@ -1,5 +1,9 @@
 module ActiveRecord
 
+  class Relation
+    MULTI_VALUE_METHODS += [:inner_joins, :outer_joins]
+  end 
+  
   module FinderMethods
     def find_with_associations
       including = (@eager_load_values + @includes_values).uniq
@@ -239,7 +243,7 @@ module ActiveRecord
           @table_aliases         = Hash.new { |aliases, table| aliases[table] = 0 }
           @table_aliases[base.table_name] = 1
           build(outer_associations, @joins.first, Arel::OuterJoin) if outer_associations
-          build(inner_associations, @joins.first, Arel::InnerJoin)
+          build(inner_associations, @joins.first, Arel::InnerJoin) if inner_associations
         end
     
         def build(associations, parent = nil, join_type = Arel::InnerJoin)
